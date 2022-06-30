@@ -1,0 +1,168 @@
+#!/bin/bash
+
+
+function aborded()
+{
+        notify-send  "Install aborded !"
+        exit 1
+}
+
+if [ "$(whoami)" != "root" ]
+then
+    zenity --error --text="You must be root to run this program !" --width=200
+    aborded
+    exit 1
+fi
+
+
+i=1
+for DEV in /sys/block/sd*
+do
+    if readlink $DEV | grep -q usb
+	then
+		DEV=`basename $DEV`
+		MODEL=$(udevadm info --query=property --name /dev/$DEV | grep ID_MODEL= | sed 's/ID_MODEL=//g')
+		VENDOR=$(udevadm info --query=property --name /dev/$DEV | grep ID_VENDOR= | sed 's/ID_VENDOR=//g')
+		SIZE=$(echo "scale=2; $(fdisk -s /dev/$DEV) / 1024^2" | bc)"GB"
+		if [ ! "$SIZE" == "GB" ]
+		then 
+		    data[$i]=$(echo "$DEV $DEV $SIZE $VENDOR $MODEL ")
+    		((i++))
+        fi
+	fi
+done
+
+
+if [ "${data[1]}" == "" ]
+then
+    zenity --error --width=200 --text="Insert an USB key and restart !"
+    exit 1
+fi
+DEV=$(zenity --list --radiolist --width=450\
+  --title="Select usb keys." --text="Select usb keys." \
+  --column="Check" --column="Device" --column="Size" --column="Vendor" --column="Model"  \
+    ${data[@]})
+
+if [ $? == 1 ] || [ "$DEV" == "" ] 
+then
+    aborded
+    exit 1
+fi
+
+FORMATPART=$(zenity --list --radiolist --width=650\
+  --title="Select file system format." --text="Select file system format." \
+  --column="" --column="Fomat" --column="Comment"  \
+  EXT4 EXT4 "Is a good choice if you only use linux systems." \
+  FAT32 FAT32 "Is a good choice if you want to use the key with different operating system.")
+
+if [ $? == 1 ] || [ "$FORMATPART" == "" ] 
+then
+    aborded
+    exit 1
+fi
+
+zenity --question --width=650 --title="Start installation ?" --text="You are about to install reefind multiboot on /dev/$DEV. This will delete all files contained on the key. Do you want to continue ?" 
+if [ $? == 1 ]
+then
+    aborded
+    exit 1
+fi
+
+zenity --question --width=650 --title="Start installation ?" --text="You are about to install reefind multiboot on /dev/$DEV. This will delete all files contained on the key. Do you want to continue ?" 
+if [ $? == 1 ]
+then
+    aborded
+    exit 1
+fi
+
+
+#Start install whith zenity progress bar
+(
+
+echo "# umount device"
+umount /dev/$DEV*
+
+echo "10"
+echo "# Erase all data on device"
+
+sgdisk /dev/$DEV -Z
+
+echo "20"
+echo "# Install disk partition table"
+
+if [ "$FORMATPART" == "EXT4" ] 
+then
+    sgdisk  --new 1:+0:+1M --typecode=1:ef02 --change-name=1:'BIOS boot partition' \
+  --new 2:+0:+32M --typecode=2:ef00 --change-name=2:'ESP' \
+  --new 3:+0:-0 --typecode=3:8300 --change-name=3:'MULTIBOOT' \
+   /dev/$DEV
+   partprobe /dev/$DEV
+   mkfs.ext4 -F -L MULTIBOOT "/dev/$DEV"3 
+   
+elif [ "$FORMATPART" == "FAT32" ]
+then
+    sgdisk  --new 1:+0:+1M --typecode=1:ef02 --change-name=1:'BIOS boot partition' \
+  --new 2:+0:+32M --typecode=2:ef00 --change-name=2:'ESP' \
+  --new 3:+0:-0 --typecode=3:4202 --change-name=3:'MULTIBOOT' \
+   /dev/$DEV 
+   partprobe /dev/$DEV
+   mkdosfs -n MULTIBOOT "/dev/$DEV"3 
+fi
+
+mkdosfs "/dev/$DEV"2
+
+echo "40"
+echo "# Mount device"
+
+mkdir /tmp/EFI 
+mkdir /tmp/boot 
+mount "/dev/$DEV"2 /tmp/EFI 
+mount "/dev/$DEV"3 /tmp/boot 
+mkdir /tmp/boot/boot 
+ 
+echo "50"
+echo "# Install grub-pc"  
+grub-install --target=i386-pc \
+  --root-directory=/tmp/boot \
+  --boot-directory=/tmp/boot/boot \
+  /dev/$DEV 
+
+echo "60"
+echo "# Install grub x86_64-efi"
+grub-install --target=x86_64-efi --removable \
+  --root-directory=/tmp/boot \
+  --boot-directory=/tmp/boot/boot \
+  --efi-directory=/tmp/EFI
+
+echo "75"
+echo "# Install grub i386-efi"
+
+grub-install --target=i386-efi --removable \
+  --root-directory=/tmp/boot \
+  --boot-directory=/tmp/boot/boot \
+  --efi-directory=/tmp/EFI
+
+echo "90"
+echo "# Copy refind"
+
+mv /tmp/EFI/EFI/BOOT /tmp/EFI/EFI/grub
+cp -R /usr/share/usb-multiboot/EFI/BOOT /tmp/EFI/EFI/
+cp -R /usr/share/usb-multiboot/boot/* /tmp/boot/boot/grub/
+chmod -R 777 /tmp/boot/
+
+echo "95"
+
+umount "/dev/$DEV"* 
+
+echo "100"
+) |
+zenity --progress \
+  --title="Install USB multiboot" \
+  --width=300 \
+  --percentage=0 \
+  --auto-close \
+  --auto-kill
+  
+zenity --info --text="Installation complete. You can now use your multiboot USB key!" --width=300
+  
+exit 0

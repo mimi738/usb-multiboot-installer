@@ -1,0 +1,9 @@
+Package: usb-multiboot-installer
+Version: 1
+Section: base
+Priority: optional
+Architecture: all
+Depends: zenity, fdisk, bc, dosfstools, mtools, gdisk, grub-pc-bin, grub-efi-ia32-bin, grub-efi-amd64-bin
+Maintainer: Coyault Peter <mimi@poutoux.fr>
+Description: REefind and grub* iso-scan script installer.
+Homepage: none

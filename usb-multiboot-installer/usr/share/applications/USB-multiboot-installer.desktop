@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Name=USB Multiboot installer
+Comment=Install USB multiboot
+Exec=pkexec /usr/sbin/usb-multiboot-installer
+Terminal=false
+X-MultipleArgs=false
+Type=Application
+Icon=drive-removable-media-usb-pendrive
+Categories=GNOME;GTK;Settings;
+MimeType=
+StartupNotify=true
