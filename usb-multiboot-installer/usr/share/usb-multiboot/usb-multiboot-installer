@@ -21,13 +21,18 @@ do
     if readlink $DEV | grep -q usb
 	then
 		DEV=`basename $DEV`
-		MODEL=$(udevadm info --query=property --name /dev/$DEV | grep ID_MODEL= | sed 's/ID_MODEL=//g')
-		VENDOR=$(udevadm info --query=property --name /dev/$DEV | grep ID_VENDOR= | sed 's/ID_VENDOR=//g')
-		SIZE=$(echo "scale=2; $(fdisk -s /dev/$DEV) / 1024^2" | bc)"GB"
-		if [ ! "$SIZE" == "GB" ]
-		then 
-		    data[$i]=$(echo "$DEV $DEV $SIZE $VENDOR $MODEL ")
-    		((i++))
+		grep "/dev/$DEV. /run/live/findiso" /etc/mtab
+		if [ "$?" == "1" ] 
+		then
+		
+		    MODEL=$(udevadm info --query=property --name /dev/$DEV | grep ID_MODEL= | sed 's/ID_MODEL=//g')
+		    VENDOR=$(udevadm info --query=property --name /dev/$DEV | grep ID_VENDOR= | sed 's/ID_VENDOR=//g')
+		    SIZE=$(echo "scale=2; $(fdisk -s /dev/$DEV) / 1024^2" | bc)"GB"
+		    if [ ! "$SIZE" == "GB" ]
+		    then 
+		        data[$i]=$(echo "$DEV $DEV $SIZE $VENDOR $MODEL ")
+    		    ((i++))
+            fi
         fi
 	fi
 done
